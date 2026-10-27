@@ -53,7 +53,9 @@ def leer_df(sql, params=()):
     rows = cur.fetchall()
     if not rows:
         return pd.DataFrame()
-    return pd.DataFrame([dict(r) for r in rows])
+    # Convertir a DataFrame usando los nombres de las columnas
+    columnas = [desc[0] for desc in cur.description]
+    return pd.DataFrame(rows, columns=columnas)
 
 
 @st.cache_data(ttl=600, max_entries=30)
