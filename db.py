@@ -21,7 +21,7 @@ def obtener_conexion():
             auth_token=token,
             sync_interval=30,
         )
-        con.row_factory = libsql.Row
+        #con.row_factory = libsql.Row
         cur = con.cursor()
         from schema import aplicar_schema
         aplicar_schema(cur)
