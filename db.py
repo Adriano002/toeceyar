@@ -36,12 +36,11 @@ def leer_df(sql, params=()):
     try:
         with conn.session as s:
             result = s.execute(text(sql_pg), params)
-            # Obtener las columnas directamente del result
-            columnas = result.keys()
             rows = result.fetchall()
             if not rows:
                 return pd.DataFrame()
-            return pd.DataFrame(rows, columns=columnas)
+            # La forma infalible: convertir cada fila a un diccionario explícitamente
+            return pd.DataFrame([dict(row._mapping) for row in rows])
     except Exception as e:
         log.error(f"Error en leer_df: {e}")
         return pd.DataFrame()
