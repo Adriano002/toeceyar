@@ -1,158 +1,59 @@
-# db.py — SOLO Turso
-import libsql
+# db.py — NEON (PostgreSQL)
 import streamlit as st
-import logging
 import pandas as pd
-from pathlib import Path
+import logging
+from datetime import datetime, date, time
+from sqlalchemy import text
 
 log = logging.getLogger("db")
-LOCAL_DB_PATH = "data/replica.db"
-Path("data").mkdir(exist_ok=True)
 
+@st.cache_resource
+def _get_conn():
+    return st.connection("neon", type="sql")
 
-@st.cache_resource(ttl=3600)
 def obtener_conexion():
+    return _get_conn()
+
+def mantener_neon_despierto():
+    """Hace un SELECT 1 a Neon para que no entre en modo suspensión."""
     try:
-        url = st.secrets["turso"]["url"]
-        token = st.secrets["turso"]["token"]
-        con = libsql.connect(
-            LOCAL_DB_PATH,
-            sync_url=url,
-            auth_token=token,
-            sync_interval=30,
-        )
-        #con.row_factory = libsql.Row
-        cur = con.cursor()
-        from schema import aplicar_schema
-        aplicar_schema(cur)
-        con.commit()
-        return con
+        conn = _get_conn()
+        with conn.session as s:
+            s.execute(text("SELECT 1"))
     except Exception as e:
-        log.error(f"Error Turso: {e}")
-        st.error("Error de conexión a la BD. Revisa los Secrets.")
-        st.stop()
-
-
-def _sync(con):
-    try:
-        con.sync()
-    except Exception as e:
-        log.warning(f"Sync Turso falló: {e}")
-
+        log.warning(f"Keep-alive falló: {e}")
 
 def escribir(sql, params=()):
-    con = obtener_conexion()
-    with con:
-        con.execute(sql, params)
-    _sync(con)
-
+    conn = _get_conn()
+    sql_pg = sql.replace("?", "%s")
+    with conn.session as s:
+        s.execute(text(sql_pg), params)
+        s.commit()
 
 def leer_df(sql, params=()):
-    con = obtener_conexion()
-    cur = con.execute(sql, params)
-    rows = cur.fetchall()
-    if not rows:
-        return pd.DataFrame()
-    # Convertir a DataFrame usando los nombres de las columnas
-    columnas = [desc[0] for desc in cur.description]
-    return pd.DataFrame(rows, columns=columnas)
-
-
-@st.cache_data(ttl=600, max_entries=30)
-def listar_grados():
-    return leer_df("SELECT * FROM grados ORDER BY nombre").to_dict("records")
-
-
-@st.cache_data(ttl=600, max_entries=30)
-def listar_turnos():
-    return leer_df("SELECT * FROM turnos ORDER BY id").to_dict("records")
-
-
-@st.cache_data(ttl=600, max_entries=30)
-def listar_ventanas():
-    return leer_df(
-        "SELECT * FROM ventanas WHERE activo=1 ORDER BY turno_id, orden"
-    ).to_dict("records")
-
-
-# ═══════════════════════════════════════════════════════════════════
-# COMPATIBILIDAD CON asistencia.py ORIGINAL
-# ═══════════════════════════════════════════════════════════════════
-from contextlib import contextmanager
-from datetime import datetime, date, time
-
-
-@contextmanager
-def cursor(dict_rows=True):
-    con = obtener_conexion()
-    cur = con.cursor()
+    conn = _get_conn()
+    sql_pg = sql.replace("?", "%s")
     try:
-        yield con, cur
-    except Exception:
-        try:
-            con.rollback()
-        except Exception:
-            pass
-        raise
-    finally:
-        try:
-            con.commit()
-        except Exception:
-            pass
+        with conn.session as s:
+            result = s.execute(text(sql_pg), params)
+            rows = result.fetchall()
+            if not rows:
+                return pd.DataFrame()
+            return pd.DataFrame([dict(r._mapping) for r in rows])
+    except Exception as e:
+        log.error(f"Error en leer_df: {e}")
+        return pd.DataFrame()
 
+def to_time(v): return v.strftime("%H:%M") if isinstance(v, (time, datetime)) else str(v)[:5]
+def to_date(v): return v.strftime("%Y-%m-%d") if isinstance(v, (date, datetime)) else str(v)[:10]
+def to_ts(v): return v.strftime("%Y-%m-%d %H:%M:%S") if isinstance(v, datetime) else str(v)[:19]
+def fmt_time(v, con_seg=False): return to_time(v) if v else ""
+def fmt_date(v): return to_date(v) if v else ""
+def fmt_ts(v): return to_ts(v) if v else ""
 
-def to_time(v):
-    if v is None or v == "":
-        return None
-    if isinstance(v, time):
-        return v.strftime("%H:%M")
-    if isinstance(v, datetime):
-        return v.strftime("%H:%M")
-    return str(v)[:5]
-
-
-def to_date(v):
-    if v is None or v == "":
-        return None
-    if isinstance(v, datetime):
-        return v.strftime("%Y-%m-%d")
-    if isinstance(v, date):
-        return v.strftime("%Y-%m-%d")
-    return str(v)[:10]
-
-
-def to_ts(v):
-    if v is None or v == "":
-        return None
-    if isinstance(v, datetime):
-        return v.strftime("%Y-%m-%d %H:%M:%S")
-    return str(v)[:19]
-
-
-def fmt_time(v, con_seg=False):
-    if v is None:
-        return ""
-    if isinstance(v, time):
-        return v.strftime("%H:%M:%S" if con_seg else "%H:%M")
-    if isinstance(v, datetime):
-        return v.strftime("%H:%M:%S" if con_seg else "%H:%M")
-    s = str(v)
-    return s[:8] if con_seg else (s[:5] if len(s) >= 5 else s)
-
-
-def fmt_date(v):
-    if v is None:
-        return ""
-    if isinstance(v, datetime):
-        return v.strftime("%Y-%m-%d")
-    if isinstance(v, date):
-        return v.strftime("%Y-%m-%d")
-    return str(v)[:10]
-
-
-def fmt_ts(v):
-    if v is None:
-        return ""
-    if isinstance(v, datetime):
-        return v.strftime("%Y-%m-%d %H:%M:%S")
-    return str(v)[:19]
+@st.cache_data(ttl=600, max_entries=30)
+def listar_grados(): return leer_df("SELECT * FROM grados ORDER BY nombre").to_dict("records")
+@st.cache_data(ttl=600, max_entries=30)
+def listar_turnos(): return leer_df("SELECT * FROM turnos ORDER BY id").to_dict("records")
+@st.cache_data(ttl=600, max_entries=30)
+def listar_ventanas(): return leer_df("SELECT * FROM ventanas WHERE activo=1 ORDER BY turno_id, orden").to_dict("records")
