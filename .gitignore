@@ -1,0 +1,8 @@
+# Archivos de Streamlit con contraseñas
+.streamlit/secrets.toml
+
+# Carpetas temporales de Python
+__pycache__/
+*.pyc
+data/replica.db
+logs/
