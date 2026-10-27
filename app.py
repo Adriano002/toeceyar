@@ -1,12 +1,9 @@
 # app.py
 import streamlit as st
-from db import leer_df, obtener_conexion
+from db import leer_df, mantener_neon_despierto
 from utils import verificar_password
 from modulos import asistencia, incidencias
 
-# ═══════════════════════════════════════════════════════════════════
-# LOGIN
-# ═══════════════════════════════════════════════════════════════════
 def vista_login():
     st.title("Iniciar Sesión")
     with st.form("login"):
@@ -20,9 +17,6 @@ def vista_login():
             else:
                 st.error("Credenciales incorrectas")
 
-# ═══════════════════════════════════════════════════════════════════
-# MENÚ POR ROL
-# ═══════════════════════════════════════════════════════════════════
 def menu_por_rol(rol):
     if rol == "Admin":
         return ["Puerta", "Panel Direccion", "Alumnos", "Carnets",
@@ -41,21 +35,13 @@ def menu_por_rol(rol):
         return ["Escaner QR", "Incidencias", "Mi cuenta"]
     return []
 
-# ═══════════════════════════════════════════════════════════════════
-# CARGAR MÓDULO
-# ═══════════════════════════════════════════════════════════════════
 def cargar_modulo(opcion):
-    # Opciones de Asistencia
     if opcion in ["Puerta", "Alumnos", "Panel Direccion", "Carnets",
                   "Justificaciones", "Bloqueados", "Dias especiales",
                   "Ventanas", "Periodos", "Mantenimiento"]:
         asistencia.enrutar(opcion)
-    
-    # Opciones de Incidencias
     elif opcion in ["Escaner QR", "Incidencias", "Decomisos", "Actas"]:
         incidencias.enrutar(opcion)
-    
-    # Opciones compartidas
     elif opcion == "Reportes":
         st.title("Reportes")
         tabs = st.tabs(["Asistencia", "Incidencias"])
@@ -63,7 +49,6 @@ def cargar_modulo(opcion):
             asistencia.enrutar("Reportes")
         with tabs[1]:
             incidencias.enrutar("Reportes")
-            
     elif opcion == "Usuarios":
         asistencia.enrutar("Usuarios")
     elif opcion == "Auditoria":
@@ -71,11 +56,11 @@ def cargar_modulo(opcion):
     elif opcion == "Mi cuenta":
         asistencia.enrutar("Mi cuenta")
 
-# ═══════════════════════════════════════════════════════════════════
-# MAIN
-# ═══════════════════════════════════════════════════════════════════
 def main():
     st.set_page_config(page_title="I.E. Yarinacocha", page_icon="🏫", layout="wide")
+
+    # 🔥 MANTENER NEON DESPIERTO
+    mantener_neon_despierto()
 
     if "user" not in st.session_state:
         vista_login()
