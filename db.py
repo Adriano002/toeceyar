@@ -39,12 +39,22 @@ def leer_df(sql, params=()):
             rows = result.fetchall()
             if not rows:
                 return pd.DataFrame()
-            # La forma infalible: convertir cada fila a un diccionario explícitamente
-            return pd.DataFrame([dict(row._mapping) for row in rows])
+            
+            # Extraer columnas y construir los diccionarios manualmente
+            columnas = result.keys()
+            datos = []
+            for row in rows:
+                # Si la fila es una tupla, la convertimos a diccionario
+                if isinstance(row, tuple):
+                    datos.append(dict(zip(columnas, row)))
+                else:
+                    # Si es un objeto Row, intentamos convertirlo a tupla
+                    datos.append(dict(zip(columnas, tuple(row))))
+            
+            return pd.DataFrame(datos)
     except Exception as e:
         log.error(f"Error en leer_df: {e}")
         return pd.DataFrame()
-
 def to_time(v): return v.strftime("%H:%M") if isinstance(v, (time, datetime)) else str(v)[:5]
 def to_date(v): return v.strftime("%Y-%m-%d") if isinstance(v, (date, datetime)) else str(v)[:10]
 def to_ts(v): return v.strftime("%Y-%m-%d %H:%M:%S") if isinstance(v, datetime) else str(v)[:19]
