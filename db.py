@@ -35,31 +35,26 @@ def leer_df(sql, params=()):
     sql_pg = sql.replace("?", "%s")
     try:
         with conn.session as s:
-            # 1. Ejecutamos la consulta
             result = s.execute(text(sql_pg), params)
-            
-            # 2. Obtenemos las columnas y las convertimos a una lista normal
-            columnas = list(result.keys())
-            
-            # 3. Obtenemos las filas
             rows = result.fetchall()
             if not rows:
-                return pd.DataFrame(columns=columnas)
+                return pd.DataFrame()
             
-            # 4. Creamos una lista vacía para guardar los diccionarios
-            datos_limpios = []
+            # Imprimir qué tipo de dato es realmente la fila
+            log.info(f"Tipo de fila: {type(rows[0])}")
+            log.info(f"Contenido de fila: {rows[0]}")
             
-            # 5. Iteramos fila por fila a la fuerza
-            for row in rows:
-                # Convertimos la fila a una tupla (por si viene como objeto Row de SQLAlchemy)
-                valores = tuple(row)
-                # Armamos el diccionario uniendo columnas y valores
-                diccionario = dict(zip(columnas, valores))
-                datos_limpios.append(diccionario)
-                
-            # 6. Pandas recibe una lista de diccionarios 100% limpios
-            return pd.DataFrame(datos_limpios)
-            
+            # Forzar la conversión a diccionario
+            datos = []
+            for r in rows:
+                if hasattr(r, '_mapping'):
+                    datos.append(dict(r._mapping))
+                elif isinstance(r, tuple):
+                    datos.append(dict(zip(result.keys(), r)))
+                else:
+                    datos.append(dict(r))
+                    
+            return pd.DataFrame(datos)
     except Exception as e:
         log.error(f"Error en leer_df: {e}")
         return pd.DataFrame()
